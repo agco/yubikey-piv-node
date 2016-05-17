@@ -17,4 +17,5 @@ struct response {
 response verify_pin(const char *pin);
 response list_readers();
 response reset();
+response change_puk(const char *current_puk, const char *new_puk);
 #endif
