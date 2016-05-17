@@ -116,7 +116,7 @@ response change_puk(const char *current_puk, const char *new_puk) {
 
   if (resp.response_code == YKPIV_OK) {
     int tries = -1;
-    resp.response_code = ykpiv_change_puk(piv_state, current_puk, sizeof(current_puk), new_puk, sizeof(new_puk), &tries);
+    resp.response_code = ykpiv_change_puk(piv_state, current_puk, strlen(current_puk), new_puk, strlen(new_puk), &tries);
     std::ostringstream out_message;
     if(resp.response_code == YKPIV_WRONG_PIN) {
         out_message << "Puk verification failed, " << tries << " tries left before device is blocked";
@@ -124,6 +124,31 @@ response change_puk(const char *current_puk, const char *new_puk) {
       out_message << "Puk code blocked, reset your device";
     } else if (resp.response_code != YKPIV_OK) {
       out_message << "Puk code verification failed: " <<  resp.response_code;
+    }
+
+    resp.error_message = out_message.str();
+  }
+
+  resp.success = resp.response_code == YKPIV_OK;
+  stop();
+
+  return resp;
+}
+
+response change_pin(const char *current_pin, const char *new_pin) {
+
+  struct response resp = start();
+
+  if (resp.response_code == YKPIV_OK) {
+    int tries = -1;
+    resp.response_code = ykpiv_change_pin(piv_state, current_pin, strlen(current_pin), new_pin, strlen(new_pin), &tries);
+    std::ostringstream out_message;
+    if(resp.response_code == YKPIV_WRONG_PIN) {
+      out_message << "Pin verification failed, " << tries << " tries left before device is blocked";
+    } else if (resp.response_code == YKPIV_PIN_LOCKED) {
+      out_message << "Pin code blocked, use unblock-pin action to unblock";
+    } else if (resp.response_code != YKPIV_OK) {
+      out_message << "Pin code verification failed: " <<  ykpiv_strerror(resp.response_code);
     }
 
     resp.error_message = out_message.str();
