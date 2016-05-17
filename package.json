@@ -1,0 +1,15 @@
+{
+  "name": "yubikey-piv-node",
+  "version": "0.0.0",
+  "description": "Yubikey node.js binding",
+  "main": "test.js",
+  "private": true,
+  "dependencies": {
+    "bindings": "~1.2.1",
+    "nan": "~1.3.0"
+  },
+  "scripts": {
+    "test": "node test.js"
+  },
+  "gypfile": true
+}
