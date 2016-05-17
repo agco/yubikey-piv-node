@@ -5,6 +5,7 @@ const yubikey = require('bindings')('yubikey');
 // tryExec(() => { console.log(yubikey.changePuk(87654321, 12345678)) });
 // tryExec(() => { console.log(yubikey.reset()) });
 // tryExec(() => { console.log(yubikey.changePin("654321", "123456")) });
+tryExec(() => { console.log(yubikey.version()) });
 
 function tryExec(func) {
   var result;

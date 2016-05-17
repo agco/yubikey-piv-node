@@ -159,3 +159,21 @@ response change_pin(const char *current_pin, const char *new_pin) {
 
   return resp;
 }
+
+response version() {
+  struct response resp = start();
+
+  if (resp.response_code == YKPIV_OK) {
+    char version[7];
+    resp.response_code = ykpiv_get_version(piv_state, version, sizeof(version));
+    if(resp.response_code == YKPIV_OK) {
+      resp.message = version;
+    } else {
+      resp.error_message = "Failed to retrieve application version.";
+    }
+  }
+  resp.success = resp.response_code == YKPIV_OK;
+  stop();
+
+  return resp;
+}
