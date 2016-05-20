@@ -122,14 +122,14 @@ void GenerateKey(const FunctionCallbackInfo<Value>& args) {
   String::Utf8Value slot_param(args[1]);
   const char *slot = *slot_param;
 
-  String::Utf8Value algorithm_param(args[2]);
-  const char *algorithm = *algorithm_param;
-  const unsigned char *algorithm_type = reinterpret_cast<const unsigned char *> (algorithm);
+  int algorithm_param = args[2]->IntegerValue();
 
-  String::Utf8Value key_format_param(args[3]);
-  const char *key_format = *key_format_param;
+  int key_format = args[3]->Int32Value();
 
-  struct response resp = generate_key(mgm_key, slot, *algorithm_type, key_format);
+  unsigned char pin_policy = YKPIV_PINPOLICY_DEFAULT;
+  unsigned char touch_policy = YKPIV_TOUCHPOLICY_DEFAULT;
+
+  struct response resp = generate_key(mgm_key, slot, algorithm_param, pin_policy, touch_policy, key_format);
   if (resp.success) {
     args.GetReturnValue().Set(String::NewFromUtf8(isolate, resp.message.c_str()));
   } else {
@@ -152,6 +152,48 @@ void GetAvailableAlgorithms(const FunctionCallbackInfo<Value>& args) {
     args.GetReturnValue().Set(algorithmsMap);
 }
 
+void GetPinPolicies(const FunctionCallbackInfo<Value>& args) {
+    Isolate* isolate = Isolate::GetCurrent();
+    HandleScope scope(isolate);
+    Local<Context> context = isolate->GetCurrentContext();
+
+    Local<Map> algorithmsMap = Map::New(isolate);
+    algorithmsMap->Set(context, String::NewFromUtf8(isolate, "DEFAULT"), Int32::New(isolate, YKPIV_PINPOLICY_DEFAULT));
+    algorithmsMap->Set(context, String::NewFromUtf8(isolate, "NEVER"), Int32::New(isolate, YKPIV_PINPOLICY_NEVER));
+    algorithmsMap->Set(context, String::NewFromUtf8(isolate, "ONCE"), Int32::New(isolate, YKPIV_PINPOLICY_ONCE));
+    algorithmsMap->Set(context, String::NewFromUtf8(isolate, "ALWAYS"), Int32::New(isolate, YKPIV_PINPOLICY_ALWAYS));
+
+    args.GetReturnValue().Set(algorithmsMap);
+}
+
+void GetTouchPolicies(const FunctionCallbackInfo<Value>& args) {
+    Isolate* isolate = Isolate::GetCurrent();
+    HandleScope scope(isolate);
+    Local<Context> context = isolate->GetCurrentContext();
+
+    Local<Map> algorithmsMap = Map::New(isolate);
+    algorithmsMap->Set(context, String::NewFromUtf8(isolate, "DEFAULT"), Int32::New(isolate, YKPIV_TOUCHPOLICY_DEFAULT));
+    algorithmsMap->Set(context, String::NewFromUtf8(isolate, "NEVER"), Int32::New(isolate, YKPIV_TOUCHPOLICY_NEVER));
+    algorithmsMap->Set(context, String::NewFromUtf8(isolate, "ALWAYS"), Int32::New(isolate, YKPIV_TOUCHPOLICY_ALWAYS));
+    algorithmsMap->Set(context, String::NewFromUtf8(isolate, "CACHED"), Int32::New(isolate, YKPIV_TOUCHPOLICY_CACHED));
+
+    args.GetReturnValue().Set(algorithmsMap);
+}
+
+void GetAvailableKeyFormats(const FunctionCallbackInfo<Value>& args) {
+  Isolate* isolate = Isolate::GetCurrent();
+  HandleScope scope(isolate);
+  Local<Context> context = isolate->GetCurrentContext();
+
+  Local<Map> algorithmsMap = Map::New(isolate);
+  algorithmsMap->Set(context, String::NewFromUtf8(isolate, "PEM"), Int32::New(isolate, key_format_arg_PEM));
+  algorithmsMap->Set(context, String::NewFromUtf8(isolate, "PKCS12"), Int32::New(isolate, key_format_arg_PKCS12));
+  algorithmsMap->Set(context, String::NewFromUtf8(isolate, "GZIP"), Int32::New(isolate, key_format_arg_GZIP));
+  algorithmsMap->Set(context, String::NewFromUtf8(isolate, "DER"), Int32::New(isolate, key_format_arg_DER));
+
+  args.GetReturnValue().Set(algorithmsMap);
+}
+
 void ImportCertificate(const FunctionCallbackInfo<Value>& args) {}
 void RequestCertificate(const FunctionCallbackInfo<Value>& args) {}
 void Status(const FunctionCallbackInfo<Value>& args) {}
@@ -168,8 +210,11 @@ void Init(Handle<Object> exports) {
   NODE_SET_METHOD(exports, "changePin", ChangePin);
   NODE_SET_METHOD(exports, "version", Version);
   NODE_SET_METHOD(exports, "setManagementKey", SetManagementKey);
-  NODE_SET_METHOD(exports, "getAvailableAlgorithms", GetAvailableAlgorithms);
   NODE_SET_METHOD(exports, "generateKey", GenerateKey);
+  NODE_SET_METHOD(exports, "getAvailableAlgorithms", GetAvailableAlgorithms);
+  NODE_SET_METHOD(exports, "getAvailableKeyFormats", GetAvailableKeyFormats);
+  NODE_SET_METHOD(exports, "getPinPolicies", GetPinPolicies);
+  NODE_SET_METHOD(exports, "getTouchPolicies", GetTouchPolicies);
 
   NODE_SET_METHOD(exports, "importCertificate", ImportCertificate);
   NODE_SET_METHOD(exports, "requestCertificate", RequestCertificate);
