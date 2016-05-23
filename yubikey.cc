@@ -194,8 +194,73 @@ void GetAvailableKeyFormats(const FunctionCallbackInfo<Value>& args) {
   args.GetReturnValue().Set(algorithmsMap);
 }
 
-void ImportCertificate(const FunctionCallbackInfo<Value>& args) {}
-void RequestCertificate(const FunctionCallbackInfo<Value>& args) {}
+void GetAvailableHashes(const FunctionCallbackInfo<Value>& args) {
+  Isolate* isolate = Isolate::GetCurrent();
+  HandleScope scope(isolate);
+  Local<Context> context = isolate->GetCurrentContext();
+
+  Local<Map> algorithmsMap = Map::New(isolate);
+  algorithmsMap->Set(context, String::NewFromUtf8(isolate, "SHA1"), Int32::New(isolate, hash_arg_SHA1));
+  algorithmsMap->Set(context, String::NewFromUtf8(isolate, "SHA256"), Int32::New(isolate, hash_arg_SHA256));
+  algorithmsMap->Set(context, String::NewFromUtf8(isolate, "SHA384"), Int32::New(isolate, hash_arg_SHA384));
+  algorithmsMap->Set(context, String::NewFromUtf8(isolate, "SHA512"), Int32::New(isolate, hash_arg_SHA512));
+
+  args.GetReturnValue().Set(algorithmsMap);
+}
+
+void RequestCertificate(const FunctionCallbackInfo<Value>& args) {
+  Isolate* isolate = Isolate::GetCurrent();
+  HandleScope scope(isolate);
+
+  String::Utf8Value mgm_key_param(args[0]);
+  const char *mgm_key = *mgm_key_param;
+
+  String::Utf8Value slot_param(args[1]);
+  const char *slot = *slot_param;
+
+  int hash = args[2]->IntegerValue();
+
+  String::Utf8Value subject_param(args[3]);
+  const char *subject = *subject_param;
+
+  String::Utf8Value public_key_param(args[4]);
+  char *public_key = *public_key_param;
+
+  struct response resp = generate_request(mgm_key, slot, hash, subject, public_key);
+  if (resp.success) {
+    args.GetReturnValue().Set(String::NewFromUtf8(isolate, resp.message.c_str()));
+  } else {
+    isolate->ThrowException(Exception::Error(String::NewFromUtf8(isolate, resp.error_message.c_str())));
+  }
+}
+
+void ImportCertificate(const FunctionCallbackInfo<Value>& args) {
+
+  Isolate* isolate = Isolate::GetCurrent();
+  HandleScope scope(isolate);
+
+  String::Utf8Value mgm_key_param(args[0]);
+  const char *mgm_key = *mgm_key_param;
+
+  String::Utf8Value slot_param(args[1]);
+  const char *slot = *slot_param;
+
+  int cert_format = args[2]->IntegerValue();
+
+  String::Utf8Value password_param(args[3]);
+  char *password = *password_param;
+
+  String::Utf8Value certificate_param(args[4]);
+  char *certificate = *certificate_param;
+
+  struct response resp = generate_request(mgm_key, slot, cert_format, password, certificate);
+  if (resp.success) {
+    args.GetReturnValue().Set(String::NewFromUtf8(isolate, resp.message.c_str()));
+  } else {
+    isolate->ThrowException(Exception::Error(String::NewFromUtf8(isolate, resp.error_message.c_str())));
+  }
+}
+
 void Status(const FunctionCallbackInfo<Value>& args) {}
 void ImportKey(const FunctionCallbackInfo<Value>& args) {}
 void UnlockPin(const FunctionCallbackInfo<Value>& args) {}
@@ -215,14 +280,15 @@ void Init(Handle<Object> exports) {
   NODE_SET_METHOD(exports, "getAvailableKeyFormats", GetAvailableKeyFormats);
   NODE_SET_METHOD(exports, "getPinPolicies", GetPinPolicies);
   NODE_SET_METHOD(exports, "getTouchPolicies", GetTouchPolicies);
-
-  NODE_SET_METHOD(exports, "importCertificate", ImportCertificate);
+  NODE_SET_METHOD(exports, "getAvailableHashes", GetAvailableHashes);
   NODE_SET_METHOD(exports, "requestCertificate", RequestCertificate);
+  NODE_SET_METHOD(exports, "importCertificate", ImportCertificate);
+
   NODE_SET_METHOD(exports, "status", Status);
+  NODE_SET_METHOD(exports, "readCertificate", ReadCertificate);
+  NODE_SET_METHOD(exports, "deleteCertificate", DeleteCertificate);
   NODE_SET_METHOD(exports, "importKey", ImportKey);
   NODE_SET_METHOD(exports, "unlockPin", UnlockPin);
-  NODE_SET_METHOD(exports, "deleteCertificate", DeleteCertificate);
-  NODE_SET_METHOD(exports, "readCertificate", ReadCertificate);
 }
 
 NODE_MODULE(addon, Init)

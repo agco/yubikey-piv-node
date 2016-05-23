@@ -32,30 +32,38 @@ const yubikey = require('bindings')('yubikey');
 //   console.log("New key: ", new_key);
 // });
 //
-console.log('-- Algorithms available -----');
-tryExec(() => {console.log(yubikey.getAvailableAlgorithms());})
+// console.log('-- Algorithms available -----');
+// tryExec(() => {console.log(yubikey.getAvailableAlgorithms());})
+//
+// console.log('-- Key formats available -----');
+// tryExec(() => {console.log(yubikey.getAvailableKeyFormats());})
+//
+// console.log('-- Pin Policies -----');
+// tryExec(() => {console.log(yubikey.getPinPolicies());})
+//
+// console.log('-- Touch Policies -----');
+// tryExec(() => {console.log(yubikey.getTouchPolicies());})
+//
+// console.log('-- Hashes -----');
+// tryExec(() => {console.log(yubikey.getAvailableHashes());})
 
-console.log('-- Key formats available -----');
-tryExec(() => {console.log(yubikey.getAvailableKeyFormats());})
-
-console.log('-- Pin Policies -----');
-tryExec(() => {console.log(yubikey.getPinPolicies());})
-
-console.log('-- Touch Policies -----');
-tryExec(() => {console.log(yubikey.getTouchPolicies());})
-
-const new_key = "383865666734626b656368626a676c6b3865717332676d38"
+const new_key = "71676e696271666d6970326a67637471326e67753475356c"
 console.log('-- Generating key RSA1024 -----');
-console.log(yubikey.generateKey(new_key, "9a", "6", "0"));
+rsa1024PublicKey = yubikey.generateKey(new_key, "9a", "6", "0");
+console.log(rsa1024PublicKey);
 
-console.log('-- Generating key RSA2048 -----');
-console.log(yubikey.generateKey(new_key, "9c", "7", "0"));
+// console.log('-- Generating key RSA2048 -----');
+// console.log(yubikey.generateKey(new_key, "9c", "7", "0"));
+// console.log(rsa2048PublicKey);
 
-console.log('-- Generating key ECP256 -----');
-console.log(yubikey.generateKey(new_key, "9d", "17", "0"));
+// console.log('-- Generating key ECP256 -----');
+// console.log(yubikey.generateKey(new_key, "9d", "17", "0"));
+//
+// console.log('-- Generating key ECP384 -----');
+// console.log(yubikey.generateKey(new_key, "9d", "20", "0"));
 
-console.log('-- Generating key ECP384 -----');
-console.log(yubikey.generateKey(new_key, "9d", "20", "0"));
+// console.log('-- Generating CSR -----');
+// console.log(yubikey.requestCertificate(new_key, "9c", 0, "/CN=foo/OU=test/O=example.com/", rsa1024PublicKey));
 
 
 function tryExec(func) {

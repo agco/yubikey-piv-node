@@ -6,6 +6,7 @@
 #include <ykpiv/ykpiv.h>
 #include "piv_manager.h"
 #include "util.h"
+#include <fstream>
 
 #define KEY_LEN 24
 
@@ -266,7 +267,6 @@ response generate_key(const char *mgm_key, const char *slot, unsigned char algor
         resp.response_code = YKPIV_ALGORITHM_ERROR;
         resp.error_message = "Unexpected algorithm";
       } else {
-
         configure_access_policies(pin_policy, touch_policy, in_data, in_ptr);
 
         int sw;
@@ -282,6 +282,53 @@ response generate_key(const char *mgm_key, const char *slot, unsigned char algor
           resp = generate_openssl_key(key_format, algorithm, data, recv_len);
         }
       }
+    }
+  }
+
+  resp.success = resp.response_code == YKPIV_OK;
+  stop();
+
+  return resp;
+}
+
+response generate_request(const char *mgm_key, const char *slot, int hash, const char *subject, char *public_key) {
+
+  struct response resp = start();
+  if (resp.response_code == YKPIV_OK) {
+    resp = authenticate(mgm_key);
+    if (resp.success) {
+      FILE * pkFile;
+      pkFile = tmpfile();
+      fputs(public_key, pkFile);
+      rewind(pkFile);
+      resp = generate_certificate_request(piv_state, pkFile, hash, slot, subject);
+      fclose(pkFile);
+    }
+  }
+
+  resp.success = resp.response_code == YKPIV_OK;
+  stop();
+
+  return resp;
+}
+
+response import_certificate(const char *mgm_key, const char *slot, int cert_format, char *password, char *certificate) {
+
+  struct response resp = start();
+  if (resp.response_code == YKPIV_OK) {
+    resp = authenticate(mgm_key);
+    if (resp.success) {
+      FILE * cert_file;
+      std::ifstream is_cert_file(certificate);
+
+      if (is_cert_file) {
+        cert_file = fopen(certificate, "r+");
+      } else {
+        cert_file = tmpfile();
+        fputs(certificate, cert_file);
+        rewind(cert_file);
+      }
+      resp = import_certificate(piv_state, slot, cert_format, password, cert_file);
     }
   }
 
