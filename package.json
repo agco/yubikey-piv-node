@@ -2,7 +2,7 @@
   "name": "yubikey-piv-node",
   "version": "0.0.0",
   "description": "Yubikey node.js binding",
-  "main": "test.js",
+  "main": "index.js",
   "private": true,
   "dependencies": {
     "bindings": "~1.2.1",
