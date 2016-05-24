@@ -1,6 +1,6 @@
 {
   "name": "yubikey-piv-node",
-  "version": "0.0.0",
+  "version": "0.0.1",
   "description": "Yubikey node.js binding",
   "main": "test.js",
   "private": true,
