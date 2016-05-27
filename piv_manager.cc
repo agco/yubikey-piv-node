@@ -7,6 +7,7 @@
 #include "piv_manager.h"
 #include "util.h"
 #include <fstream>
+#include <openssl/des.h>
 
 #define KEY_LEN 24
 
@@ -329,6 +330,65 @@ response import_certificate(const char *mgm_key, const char *slot, int cert_form
         rewind(cert_file);
       }
       resp = import_certificate(piv_state, slot, cert_format, password, cert_file);
+    }
+  }
+
+  resp.success = resp.response_code == YKPIV_OK;
+  stop();
+
+  return resp;
+}
+
+response get_status() {
+
+  struct response resp = start();
+  if (resp.response_code == YKPIV_OK) {
+    FILE *output_file;
+    output_file = tmpfile();
+
+    unsigned char buf[3072];
+    long unsigned len = sizeof(buf);
+
+    fprintf(output_file, "CHUID:\t");
+    if (ykpiv_fetch_object(piv_state, YKPIV_OBJ_CHUID, buf, &len) == YKPIV_OK) {
+      dump_data(buf, len, output_file, false);
+    } else {
+      fprintf(output_file, "No data available\n");
+    }
+
+    len = sizeof(buf);
+    fprintf(output_file, "CCC:\t");
+    if(ykpiv_fetch_object(piv_state, YKPIV_OBJ_CAPABILITY, buf, &len) == YKPIV_OK) {
+      dump_data(buf, len, output_file, false);
+    } else {
+      fprintf(output_file, "No data available\n");
+    }
+
+    int tries;
+    ykpiv_verify(piv_state, NULL, &tries);
+    fprintf(output_file, "PIN tries left:\t%d\n", tries);
+
+    resp.message = file_to_str(output_file);
+    fclose(output_file);
+  }
+
+  resp.success = resp.response_code == YKPIV_OK;
+  stop();
+
+  return resp;
+}
+
+response read_slot(const char *slot, int hash) {
+  struct response resp = start();
+
+  if (resp.response_code == YKPIV_OK) {
+    const EVP_MD *md;
+    md = get_hash(hash, NULL, NULL);
+    if(md != NULL) {
+      resp = print_cert_info(piv_state, slot, md);
+    } else {
+      resp.response_code = YKPIV_GENERIC_ERROR;
+      resp.error_message = "Impossible to get hash.";
     }
   }
 

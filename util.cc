@@ -482,24 +482,21 @@ response generate_certificate_request(ykpiv_state *piv_state, FILE *input_file, 
   return resp;
 }
 
-int get_object_id(char slot) {
+int get_object_id(int slot) {
   int object;
 
   switch(slot) {
-    case 'a':
+    case 154:
       object = YKPIV_OBJ_AUTHENTICATION;
       break;
-    case 'c':
+    case 156:
       object = YKPIV_OBJ_SIGNATURE;
       break;
-    case 'd':
+    case 157:
       object = YKPIV_OBJ_KEY_MANAGEMENT;
       break;
-    case 'e':
+    case 158:
       object = YKPIV_OBJ_CARD_AUTH;
-      break;
-    case '9':
-      object = YKPIV_OBJ_ATTESTATION;
       break;
     default:
       object = 0;
@@ -626,4 +623,113 @@ import_cert_out:
   resp.response_code = YKPIV_GENERIC_ERROR;
   resp.error_message = error_message;
   return resp;
+}
+
+response print_cert_info(ykpiv_state *state, const char *slot, const EVP_MD *md) {
+  struct response resp;
+  X509 *x509 = NULL;
+  BIO *bio = NULL;
+  FILE *output = NULL;
+
+  int slot_key = 0;
+  sscanf(slot, "%2x", &slot_key);
+  int object = get_object_id(slot_key);
+
+  unsigned char data[3072];
+  const unsigned char *ptr = data;
+  unsigned long len = sizeof(data);
+
+  resp.response_code = ykpiv_fetch_object(state, object, data, &len);
+  if(resp.response_code != YKPIV_OK) {
+    resp.error_message = "Slot is empty.";
+  } else {
+    int cert_len;
+    X509_NAME *subj;
+
+    output = tmpfile();
+
+    if(*ptr++ == 0x70) {
+      unsigned int md_len = sizeof(data);
+      ASN1_TIME *not_before, *not_after;
+
+      ptr += get_length(ptr, &cert_len);
+      x509 = X509_new();
+      x509 = d2i_X509(NULL, &ptr, cert_len);
+      EVP_PKEY *key = X509_get_pubkey(x509);
+      fprintf(output, "Algorithm:\t");
+      switch(get_algorithm(key)) {
+        case YKPIV_ALGO_RSA1024:
+          fprintf(output, "RSA1024\n");
+          break;
+        case YKPIV_ALGO_RSA2048:
+          fprintf(output, "RSA2048\n");
+          break;
+        case YKPIV_ALGO_ECCP256:
+          fprintf(output, "ECCP256\n");
+          break;
+        case YKPIV_ALGO_ECCP384:
+          fprintf(output, "ECCP384\n");
+          break;
+        default:
+          fprintf(output, "Unknown\n");
+      }
+      subj = X509_get_subject_name(x509);
+      fprintf(output, "Subject DN:\t");
+      X509_NAME_print_ex_fp(output, subj, 0, XN_FLAG_COMPAT);
+      fprintf(output, "\n");
+      subj = X509_get_issuer_name(x509);
+      fprintf(output, "Issuer DN:\t");
+      X509_NAME_print_ex_fp(output, subj, 0, XN_FLAG_COMPAT);
+      fprintf(output, "\n");
+      X509_digest(x509, md, data, &md_len);
+      fprintf(output, "Fingerprint:\t");
+      dump_data(data, md_len, output, false);
+
+      bio = BIO_new_fp(output, BIO_NOCLOSE | BIO_FP_TEXT);
+      not_before = X509_get_notBefore(x509);
+      if(not_before) {
+        fprintf(output, "Not Before:\t");
+        ASN1_TIME_print(bio, not_before);
+        fprintf(output, "\n");
+      }
+      not_after = X509_get_notAfter(x509);
+      if(not_after) {
+        fprintf(output, "Not After:\t");
+        ASN1_TIME_print(bio, not_after);
+        fprintf(output, "\n");
+      }
+
+      resp.message = file_to_str(output);
+    } else {
+      resp.response_code = YKPIV_GENERIC_ERROR;
+      resp.error_message = "Parse error.";
+    }
+  }
+
+  if (x509) {
+    X509_free(x509);
+  }
+  if (bio) {
+    BIO_free(bio);
+  }
+  if (output) {
+    fclose(output);
+  }
+
+  return resp;
+}
+
+void dump_data(const unsigned char *buf, unsigned int len, FILE *output, bool space) {
+  char tmp[3072 * 3 + 1];
+  unsigned int i;
+  unsigned int step = 2;
+  if(space) step += 1;
+  if(len > 3072) {
+    return;
+  }
+  for (i = 0; i < len; i++) {
+    sprintf(tmp + i * step, "%02x%s", buf[i], space == true ? " " : "");
+  }
+  fprintf(output, "%s\n", tmp);
+  return;
 }

@@ -261,7 +261,35 @@ void ImportCertificate(const FunctionCallbackInfo<Value>& args) {
   }
 }
 
-void Status(const FunctionCallbackInfo<Value>& args) {}
+void Status(const FunctionCallbackInfo<Value>& args) {
+  Isolate* isolate = Isolate::GetCurrent();
+  HandleScope scope(isolate);
+
+  struct response resp = get_status();
+  if (resp.success) {
+    args.GetReturnValue().Set(String::NewFromUtf8(isolate, resp.message.c_str()));
+  } else {
+    isolate->ThrowException(Exception::Error(String::NewFromUtf8(isolate, resp.error_message.c_str())));
+  }
+}
+
+void ReadSlot(const FunctionCallbackInfo<Value>& args) {
+  Isolate* isolate = Isolate::GetCurrent();
+  HandleScope scope(isolate);
+
+  String::Utf8Value slot_param(args[0]);
+  const char *slot = *slot_param;
+
+  int hash = args[1]->IntegerValue();
+
+  struct response resp = read_slot(slot, hash);
+  if (resp.success) {
+    args.GetReturnValue().Set(String::NewFromUtf8(isolate, resp.message.c_str()));
+  } else {
+    isolate->ThrowException(Exception::Error(String::NewFromUtf8(isolate, resp.error_message.c_str())));
+  }
+}
+
 void ImportKey(const FunctionCallbackInfo<Value>& args) {}
 void UnlockPin(const FunctionCallbackInfo<Value>& args) {}
 void DeleteCertificate(const FunctionCallbackInfo<Value>& args) {}
@@ -283,8 +311,9 @@ void Init(Handle<Object> exports) {
   NODE_SET_METHOD(exports, "getAvailableHashes", GetAvailableHashes);
   NODE_SET_METHOD(exports, "requestCertificate", RequestCertificate);
   NODE_SET_METHOD(exports, "importCertificate", ImportCertificate);
-
   NODE_SET_METHOD(exports, "status", Status);
+  NODE_SET_METHOD(exports, "readSlot", ReadSlot);
+
   NODE_SET_METHOD(exports, "readCertificate", ReadCertificate);
   NODE_SET_METHOD(exports, "deleteCertificate", DeleteCertificate);
   NODE_SET_METHOD(exports, "importKey", ImportKey);

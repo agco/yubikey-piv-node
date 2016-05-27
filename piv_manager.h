@@ -85,4 +85,6 @@ response set_management_key(const char *current_mgm_key, const char *new_mgm_key
 response generate_key(const char *mgm_key, const char *slot, unsigned char algorithm, unsigned char pin_policy, unsigned char touch_policy, int key_format);
 response generate_request(const char *mgm_key, const char *slot, int hash, const char *subject, char *public_key);
 response import_certificate(const char *mgm_key, const char *slot, int cert_format, char *password, char *certificate);
+response get_status();
+response read_slot(const char *slot, int hash);
 #endif

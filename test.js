@@ -46,24 +46,32 @@ const yubikey = require('bindings')('yubikey');
 //
 // console.log('-- Hashes -----');
 // tryExec(() => {console.log(yubikey.getAvailableHashes());})
-
-const new_key = "71676e696271666d6970326a67637471326e67753475356c"
-console.log('-- Generating key RSA1024 -----');
-rsa1024PublicKey = yubikey.generateKey(new_key, "9a", "6", "0");
-console.log(rsa1024PublicKey);
-
+//
+// // const new_key = "71676e696271666d6970326a67637471326e67753475356c"
+// console.log('-- Generating key RSA1024 -----');
+// rsa1024PublicKey = yubikey.generateKey(new_key, "9a", "6", "0");
+// console.log(rsa1024PublicKey);
+//
 // console.log('-- Generating key RSA2048 -----');
 // console.log(yubikey.generateKey(new_key, "9c", "7", "0"));
-// console.log(rsa2048PublicKey);
-
+//
 // console.log('-- Generating key ECP256 -----');
 // console.log(yubikey.generateKey(new_key, "9d", "17", "0"));
 //
 // console.log('-- Generating key ECP384 -----');
 // console.log(yubikey.generateKey(new_key, "9d", "20", "0"));
-
+//
 // console.log('-- Generating CSR -----');
 // console.log(yubikey.requestCertificate(new_key, "9c", 0, "/CN=foo/OU=test/O=example.com/", rsa1024PublicKey));
+
+console.log('-- Status -----------');
+console.log(yubikey.status());
+
+console.log('-- Slot 9a -----------');
+tryExec(() => { console.log(yubikey.readSlot("9a", 2)) });
+
+console.log('-- Slot 9c -----------');
+tryExec(() => {console.log(yubikey.readSlot("9c", 2)) });
 
 
 function tryExec(func) {
