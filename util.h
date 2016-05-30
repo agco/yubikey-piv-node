@@ -18,4 +18,9 @@ const EVP_MD *get_hash(int hash, const unsigned char **oid, size_t *oid_len);
 void dump_data(const unsigned char *buf, unsigned int len, FILE *output, bool space);
 response print_cert_info(ykpiv_state *state, const char *slot, const EVP_MD *md);
 string file_to_str(FILE *pFile);
+int get_object_id(int slot);
+int get_length(const unsigned char *buffer, int *len);
+unsigned char get_algorithm(EVP_PKEY *key);
+bool set_component(unsigned char *in_ptr, const BIGNUM *bn, int element_len);
+response import_key(ykpiv_state *state, int key_format, const char *key_param, const char *slot, char *password, unsigned char pin_policy, unsigned char touch_policy);
 #endif

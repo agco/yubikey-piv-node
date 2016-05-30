@@ -329,6 +329,7 @@ response import_certificate(const char *mgm_key, const char *slot, int cert_form
         fputs(certificate, cert_file);
         rewind(cert_file);
       }
+      OpenSSL_add_all_algorithms();
       resp = import_certificate(piv_state, slot, cert_format, password, cert_file);
     }
   }
@@ -389,6 +390,139 @@ response read_slot(const char *slot, int hash) {
     } else {
       resp.response_code = YKPIV_GENERIC_ERROR;
       resp.error_message = "Impossible to get hash.";
+    }
+  }
+
+  resp.success = resp.response_code == YKPIV_OK;
+  stop();
+
+  return resp;
+}
+
+response read_certificate(const char *slot, int key_format) {
+  struct response resp = start();
+
+  if (resp.response_code == YKPIV_OK) {
+    FILE *output_file;
+    output_file = tmpfile();
+
+    int slot_key = 0;
+    sscanf(slot, "%2x", &slot_key);
+
+    int object = get_object_id(slot_key);
+    unsigned char data[3072];
+    const unsigned char *ptr = data;
+    unsigned long len = sizeof(data);
+    int cert_len;
+    X509 *x509 = NULL;
+
+    resp.response_code = ykpiv_fetch_object(piv_state, object, data, &len);
+    if(resp.response_code == YKPIV_OK) {
+      if(*ptr++ == 0x70) {
+        ptr += get_length(ptr, &cert_len);
+        if(key_format == key_format_arg_PEM) {
+          x509 = X509_new();
+          if(x509) {
+            x509 = d2i_X509(NULL, &ptr, cert_len);
+            if(x509) {
+              PEM_write_X509(output_file, x509);
+              resp.message = file_to_str(output_file);
+            } else {
+              resp.error_message = "Failed parsing x509 information.";
+              resp.response_code = YKPIV_GENERIC_ERROR;
+            }
+          } else {
+            resp.error_message = "Failed allocating x509 structure.";
+            resp.response_code = YKPIV_GENERIC_ERROR;
+          }
+        } else {
+          fwrite(ptr, (size_t)cert_len, 1, output_file);
+          resp.message = file_to_str(output_file);
+        }
+      } else {
+        resp.error_message = "Failed parsing data.";
+        resp.response_code = YKPIV_GENERIC_ERROR;
+      }
+    } else {
+      resp.error_message = "Failed fetching certificate.";
+    }
+
+    if (output_file) {
+      fclose(output_file);
+    }
+
+    if(x509) {
+      X509_free(x509);
+    }
+  }
+
+  resp.success = resp.response_code == YKPIV_OK;
+  stop();
+
+  return resp;
+}
+
+response delete_certificate(const char *slot, const char *mgm_key) {
+  int slot_key = 0;
+  sscanf(slot, "%2x", &slot_key);
+  int object = get_object_id(slot_key);
+
+  struct response resp = start();
+
+  if (resp.response_code == YKPIV_OK) {
+    resp = authenticate(mgm_key);
+
+    if (resp.success) {
+      resp.response_code = ykpiv_save_object(piv_state, object, NULL, 0);
+      if(resp.response_code != YKPIV_OK) {
+        resp.error_message = ykpiv_strerror(resp.response_code);
+      } else {
+        resp.message = "Certificate deleted.";
+      }
+    }
+  }
+
+  resp.success = resp.response_code == YKPIV_OK;
+  stop();
+
+  return resp;
+}
+
+response unblock_pin(const char * puk, const char * new_pin) {
+  struct response resp = start();
+
+  if (resp.response_code == YKPIV_OK) {
+    size_t puk_len = sizeof(puk);
+    size_t new_pin_len = sizeof(new_pin);
+    int tries = -1;
+
+    resp.response_code = ykpiv_unblock_pin(piv_state, puk, puk_len, new_pin, new_pin_len, &tries);
+
+    if(resp.response_code == YKPIV_OK) {
+      resp.message = "true";
+    } else {
+      resp.error_message = ykpiv_strerror(resp.response_code);
+    }
+  }
+
+  resp.success = resp.response_code == YKPIV_OK;
+  stop();
+
+  return resp;
+}
+
+response import_key(const char *mgm_key, int key_format, const char *key_param, const char *slot, char *password, unsigned char pin_policy, unsigned char touch_policy) {
+  struct response resp = start();
+
+  if (resp.response_code == YKPIV_OK) {
+    resp = authenticate(mgm_key);
+
+    if (resp.success) {
+      OpenSSL_add_all_algorithms();
+      resp = import_key(piv_state, key_format, key_param, slot, password, pin_policy, touch_policy);
+      if (resp.response_code == YKPIV_OK) {
+        resp.message = "true";
+      }
     }
   }
 

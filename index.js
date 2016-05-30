@@ -60,6 +60,22 @@ function importCertificate(mgmKey, slot, certFormat, certificate, password) {
   return yubikey.importCertificate(mgmKey, slot, certFormat, password, certificate);
 }
 
+function readCertificate(slot, keyFormat) {
+  return yubikey.readCertificate(slot, keyFormat);
+}
+
+function deleteCertificate(slot, mgmKey) {
+  return yubikey.deleteCertificate(slot, mgmKey);
+}
+
+function importKey(mgmKey, slot, certFormat, certificate, password) {
+  return yubikey.importKey(mgmKey, slot, certFormat, password, certificate);
+}
+
+function unlockPin(puk, newPin) {
+  return yubikey.unlockPin(puk, newPin);
+}
+
 module.exports = {
   listReaders,
   verifyPin,
@@ -75,5 +91,9 @@ module.exports = {
   getTouchPolicies,
   getAvailableHashes,
   requestCertificate,
-  importCertificate
+  importCertificate,
+  readCertificate,
+  deleteCertificate,
+  importKey,
+  unlockPin
 }

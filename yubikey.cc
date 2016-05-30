@@ -253,7 +253,7 @@ void ImportCertificate(const FunctionCallbackInfo<Value>& args) {
   String::Utf8Value certificate_param(args[4]);
   char *certificate = *certificate_param;
 
-  struct response resp = generate_request(mgm_key, slot, cert_format, password, certificate);
+  struct response resp = import_certificate(mgm_key, slot, cert_format, password, certificate);
   if (resp.success) {
     args.GetReturnValue().Set(String::NewFromUtf8(isolate, resp.message.c_str()));
   } else {
@@ -290,10 +290,88 @@ void ReadSlot(const FunctionCallbackInfo<Value>& args) {
   }
 }
 
-void ImportKey(const FunctionCallbackInfo<Value>& args) {}
-void UnlockPin(const FunctionCallbackInfo<Value>& args) {}
-void DeleteCertificate(const FunctionCallbackInfo<Value>& args) {}
-void ReadCertificate(const FunctionCallbackInfo<Value>& args) {}
+void ReadCertificate(const FunctionCallbackInfo<Value>& args) {
+  Isolate* isolate = Isolate::GetCurrent();
+  HandleScope scope(isolate);
+
+  String::Utf8Value slot_param(args[0]);
+  const char *slot = *slot_param;
+
+  int key_format = args[1]->Int32Value();
+
+  struct response resp = read_certificate(slot, key_format);
+  if (resp.success) {
+    args.GetReturnValue().Set(String::NewFromUtf8(isolate, resp.message.c_str()));
+  } else {
+    isolate->ThrowException(Exception::Error(String::NewFromUtf8(isolate, resp.error_message.c_str())));
+  }
+}
+
+void DeleteCertificate(const FunctionCallbackInfo<Value>& args) {
+  Isolate* isolate = Isolate::GetCurrent();
+  HandleScope scope(isolate);
+
+  String::Utf8Value slot_param(args[0]);
+  const char *slot = *slot_param;
+
+  String::Utf8Value mgm_key_param(args[1]);
+  const char *mgm_key = *mgm_key_param;
+
+  struct response resp = delete_certificate(slot, mgm_key);
+  if (resp.success) {
+    args.GetReturnValue().Set(String::NewFromUtf8(isolate, resp.message.c_str()));
+  } else {
+    isolate->ThrowException(Exception::Error(String::NewFromUtf8(isolate, resp.error_message.c_str())));
+  }
+}
+
+void UnlockPin(const FunctionCallbackInfo<Value>& args) {
+  Isolate* isolate = Isolate::GetCurrent();
+  HandleScope scope(isolate);
+
+  String::Utf8Value puk_param(args[0]);
+  const char *puk = *puk_param;
+
+  String::Utf8Value new_pin_param(args[1]);
+  const char *new_pin = *new_pin_param;
+
+  struct response resp = unblock_pin(puk, new_pin);
+  if (resp.success) {
+    args.GetReturnValue().Set(String::NewFromUtf8(isolate, resp.message.c_str()));
+  } else {
+    isolate->ThrowException(Exception::Error(String::NewFromUtf8(isolate, resp.error_message.c_str())));
+  }
+}
+
+void ImportKey(const FunctionCallbackInfo<Value>& args) {
+  Isolate* isolate = Isolate::GetCurrent();
+  HandleScope scope(isolate);
+
+
+  String::Utf8Value mgm_key_param(args[0]);
+  const char *mgm_key = *mgm_key_param;
+
+  String::Utf8Value slot_param(args[1]);
+  const char *slot = *slot_param;
+
+  int key_format = args[2]->IntegerValue();
+
+  String::Utf8Value password_param(args[3]);
+  char *password = *password_param;
+
+  String::Utf8Value key_param(args[4]);
+  char *key = *key_param;
+
+  unsigned char pin_policy = YKPIV_PINPOLICY_DEFAULT;
+  unsigned char touch_policy = YKPIV_TOUCHPOLICY_DEFAULT;
+
+  struct response resp = import_key(mgm_key, key_format, key, slot, password, pin_policy, touch_policy);
+  if (resp.success) {
+    args.GetReturnValue().Set(String::NewFromUtf8(isolate, resp.message.c_str()));
+  } else {
+    isolate->ThrowException(Exception::Error(String::NewFromUtf8(isolate, resp.error_message.c_str())));
+  }
+}
 
 void Init(Handle<Object> exports) {
   NODE_SET_METHOD(exports, "listReaders", ListReaders);
@@ -313,11 +391,10 @@ void Init(Handle<Object> exports) {
   NODE_SET_METHOD(exports, "importCertificate", ImportCertificate);
   NODE_SET_METHOD(exports, "status", Status);
   NODE_SET_METHOD(exports, "readSlot", ReadSlot);
-
   NODE_SET_METHOD(exports, "readCertificate", ReadCertificate);
   NODE_SET_METHOD(exports, "deleteCertificate", DeleteCertificate);
-  NODE_SET_METHOD(exports, "importKey", ImportKey);
   NODE_SET_METHOD(exports, "unlockPin", UnlockPin);
+  NODE_SET_METHOD(exports, "importKey", ImportKey);
 }
 
 NODE_MODULE(addon, Init)

@@ -87,4 +87,8 @@ response generate_request(const char *mgm_key, const char *slot, int hash, const
 response import_certificate(const char *mgm_key, const char *slot, int cert_format, char *password, char *certificate);
 response get_status();
 response read_slot(const char *slot, int hash);
+response read_certificate(const char *slot, int key_format);
+response delete_certificate(const char *slot, const char *mgm_key);
+response unblock_pin(const char * puk, const char * new_pin);
+response import_key(const char *mgm_key, int key_format, const char *key_param, const char *slot, char *password, unsigned char pin_policy, unsigned char touch_policy);
 #endif

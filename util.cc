@@ -602,6 +602,8 @@ response import_certificate(ykpiv_state *piv_state, const char *slot, int cert_f
     if (resp.response_code != YKPIV_OK) {
       out_message << "Failed commands with device: " << ykpiv_strerror(resp.response_code);
       resp.error_message = out_message.str();
+    } else {
+      resp.message = "true";
     }
   }
   return resp;
@@ -732,4 +734,156 @@ void dump_data(const unsigned char *buf, unsigned int len, FILE *output, bool sp
   }
   fprintf(output, "%s\n", tmp);
   return;
+}
+
+bool set_component(unsigned char *in_ptr, const BIGNUM *bn, int element_len) {
+  int real_len = BN_num_bytes(bn);
+
+  if(real_len > element_len) {
+    return false;
+  }
+  memset(in_ptr, 0, (size_t)(element_len - real_len));
+  in_ptr += element_len - real_len;
+  BN_bn2bin(bn, in_ptr);
+
+  return true;
+}
+
+response import_key(ykpiv_state *state, int key_format, const char *key_param, const char *slot, char *password, unsigned char pin_policy, unsigned char touch_policy) {
+  struct response resp;
+
+  int key = 0;
+  FILE *input_file = NULL;
+  EVP_PKEY *private_key = NULL;
+  PKCS12 *p12 = NULL;
+  X509 *cert = NULL;
+  sscanf(slot, "%2x", &key);
+
+  input_file = fopen(key_param, "r+");
+  if(!input_file) {
+    resp.response_code = YKPIV_GENERIC_ERROR;
+    resp.error_message = "Impossible to open key file.";
+  } else {
+    if(key_format == key_format_arg_PEM) {
+      private_key = PEM_read_PrivateKey(input_file, NULL, NULL, password);
+      if(!private_key) {
+        resp.response_code = YKPIV_GENERIC_ERROR;
+        resp.error_message = "Failed loading private key for import.";
+      }
+    } else if(key_format == key_format_arg_PKCS12) {
+      p12 = d2i_PKCS12_fp(input_file, NULL);
+      if(p12) {
+        if(PKCS12_parse(p12, password, &private_key, &cert, NULL) == 0) {
+          resp.response_code = YKPIV_GENERIC_ERROR;
+          resp.error_message = "Failed to parse PKCS12 structure. (wrong password?)";
+        }
+      } else {
+        resp.response_code = YKPIV_GENERIC_ERROR;
+        resp.error_message = "Failed to load PKCS12 from file.";
+      }
+    } else {
+      resp.response_code = YKPIV_GENERIC_ERROR;
+      resp.error_message = "Unknown key format.";
+    }
+  }
+
+  if (resp.response_code == YKPIV_OK) {
+    unsigned char algorithm = get_algorithm(private_key);
+
+    if(algorithm != 0) {
+      if(YKPIV_IS_RSA(algorithm)) {
+        RSA *rsa_private_key = EVP_PKEY_get1_RSA(private_key);
+        unsigned char e[4];
+        unsigned char p[128];
+        unsigned char q[128];
+        unsigned char dmp1[128];
+        unsigned char dmq1[128];
+        unsigned char iqmp[128];
+
+        int element_len = 128;
+        if(algorithm == YKPIV_ALGO_RSA1024) {
+          element_len = 64;
+        }
+
+        if((set_component(e, rsa_private_key->e, 3) == false) || !(e[0] == 0x01 && e[1] == 0x00 && e[2] == 0x01)) {
+          resp.response_code = YKPIV_GENERIC_ERROR;
+          resp.error_message = "Invalid public exponent for import (only 0x10001 supported).";
+        } else {
+          if(set_component(p, rsa_private_key->p, element_len) == false) {
+            resp.response_code = YKPIV_GENERIC_ERROR;
+            resp.error_message = "Failed setting p component.";
+          } else {
+            if(set_component(q, rsa_private_key->q, element_len) == false) {
+              resp.response_code = YKPIV_GENERIC_ERROR;
+              resp.error_message = "Failed setting q component.";
+            } else {
+              if(set_component(dmp1, rsa_private_key->dmp1, element_len) == false) {
+                resp.response_code = YKPIV_GENERIC_ERROR;
+                resp.error_message = "Failed setting dmp1 component.";
+              } else {
+                if(set_component(dmq1, rsa_private_key->dmq1, element_len) == false) {
+                  resp.response_code = YKPIV_GENERIC_ERROR;
+                  resp.error_message = "Failed setting dmq1 component.";
+                } else {
+                  if(set_component(iqmp, rsa_private_key->iqmp, element_len) == false) {
+                    resp.response_code = YKPIV_GENERIC_ERROR;
+                    resp.error_message = "Failed setting iqmp component.";
+                  } else {
+                    resp.response_code = ykpiv_import_private_key(state, key, algorithm,
+                                                  p, element_len,
+                                                  q, element_len,
+                                                  dmp1, element_len,
+                                                  dmq1, element_len,
+                                                  iqmp, element_len,
+                                                  NULL, 0,
+                                                  pin_policy, touch_policy);
+                  }
+                }
+              }
+            }
+          }
+        }
+      } else if(YKPIV_IS_EC(algorithm)) {
+        EC_KEY *ec = EVP_PKEY_get1_EC_KEY(private_key);
+        const BIGNUM *s = EC_KEY_get0_private_key(ec);
+        unsigned char s_ptr[48];
+
+        int element_len = 32;
+        if(algorithm == YKPIV_ALGO_ECCP384) {
+          element_len = 48;
+        }
+
+        if(set_component(s_ptr, s, element_len) == false) {
+          resp.response_code = YKPIV_GENERIC_ERROR;
+          resp.error_message = "Failed setting ec private key.";
+        } else {
+          resp.response_code = ykpiv_import_private_key(state, key, algorithm,
+                                        NULL, 0,
+                                        NULL, 0,
+                                        NULL, 0,
+                                        NULL, 0,
+                                        NULL, 0,
+                                        s_ptr, element_len,
+                                        pin_policy, touch_policy);
+        }
+      }
+    }
+  }
+  if(private_key) {
+    EVP_PKEY_free(private_key);
+  }
+
+  if(p12) {
+    PKCS12_free(p12);
+  }
+
+  if(cert) {
+    X509_free(cert);
+  }
+
+  if(input_file != stdin) {
+    fclose(input_file);
+  }
+
+  return resp;
 }
