@@ -2,7 +2,11 @@
     "targets": [
     {
         "target_name": "yubikey",
-        "sources": [ "yubikey.cc", "piv_manager.cc", "util.cc" ],
+        "sources": [
+            "src/yubikey.cc",
+            "src/piv_manager.cc",
+            "src/util.cc"
+        ],
         "link_settings": {
             "libraries": [
                 "-lykpiv",
