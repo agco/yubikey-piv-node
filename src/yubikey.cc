@@ -347,7 +347,6 @@ void ImportKey(const FunctionCallbackInfo<Value>& args) {
   Isolate* isolate = Isolate::GetCurrent();
   HandleScope scope(isolate);
 
-
   String::Utf8Value mgm_key_param(args[0]);
   const char *mgm_key = *mgm_key_param;
 
@@ -397,4 +396,4 @@ void Init(Handle<Object> exports) {
   NODE_SET_METHOD(exports, "importKey", ImportKey);
 }
 
-NODE_MODULE(addon, Init)
+NODE_MODULE(yubikey, Init)
