@@ -212,8 +212,8 @@ void RequestCertificate(const FunctionCallbackInfo<Value>& args) {
   Isolate* isolate = Isolate::GetCurrent();
   HandleScope scope(isolate);
 
-  String::Utf8Value mgm_key_param(args[0]);
-  const char *mgm_key = *mgm_key_param;
+  String::Utf8Value pin_param(args[0]);
+  const char *pin = *pin_param;
 
   String::Utf8Value slot_param(args[1]);
   const char *slot = *slot_param;
@@ -226,7 +226,7 @@ void RequestCertificate(const FunctionCallbackInfo<Value>& args) {
   String::Utf8Value public_key_param(args[4]);
   char *public_key = *public_key_param;
 
-  struct response resp = generate_request(mgm_key, slot, hash, subject, public_key);
+  struct response resp = generate_request(pin, slot, hash, subject, public_key);
   if (resp.success) {
     args.GetReturnValue().Set(String::NewFromUtf8(isolate, resp.message.c_str()));
   } else {
@@ -247,11 +247,11 @@ void ImportCertificate(const FunctionCallbackInfo<Value>& args) {
 
   int cert_format = args[2]->IntegerValue();
 
-  String::Utf8Value password_param(args[3]);
-  char *password = *password_param;
-
-  String::Utf8Value certificate_param(args[4]);
+  String::Utf8Value certificate_param(args[3]);
   char *certificate = *certificate_param;
+
+  String::Utf8Value password_param(args[4]);
+  char *password = *password_param;
 
   struct response resp = import_certificate(mgm_key, slot, cert_format, password, certificate);
   if (resp.success) {

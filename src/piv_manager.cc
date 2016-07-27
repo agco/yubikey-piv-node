@@ -18,7 +18,7 @@ ykpiv_state *piv_state = NULL;
 response start() {
   struct response resp;
 
-  int verbosity = 0;
+  int verbosity = 1;
   ykpiv_rc res = ykpiv_init(&piv_state, verbosity);
 
   if(res == YKPIV_OK) {
@@ -89,25 +89,9 @@ response list_readers() {
 
 response verify_pin(const char *pin) {
   struct response resp = start();
-
   if (resp.response_code == YKPIV_OK) {
-    std::ostringstream out_message;
-    int tries = -1;
-    resp.response_code = ykpiv_verify(piv_state, pin, &tries);
-
-    if(resp.response_code == YKPIV_WRONG_PIN) {
-      if(tries > 0) {
-        out_message << "Pin verification failed, " << tries << " tries left before pin is blocked";
-      } else {
-        out_message << "Pin code blocked, use unblock-pin action to unblock";
-      }
-    } else if (resp.response_code != YKPIV_OK) {
-      out_message << "Pin code verification failed: " <<  ykpiv_strerror(resp.response_code);
-    }
-    resp.error_message = out_message.str();
+    resp = validate_pin(piv_state, pin);
   }
-
-  resp.success = resp.response_code == YKPIV_OK;
   stop();
 
   return resp;
@@ -292,11 +276,11 @@ response generate_key(const char *mgm_key, const char *slot, unsigned char algor
   return resp;
 }
 
-response generate_request(const char *mgm_key, const char *slot, int hash, const char *subject, char *public_key) {
+response generate_request(const char *pin, const char *slot, int hash, const char *subject, char *public_key) {
 
   struct response resp = start();
   if (resp.response_code == YKPIV_OK) {
-    resp = authenticate(mgm_key);
+    resp = validate_pin(piv_state, pin);
     if (resp.success) {
       FILE * pkFile;
       pkFile = tmpfile();

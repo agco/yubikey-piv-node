@@ -23,4 +23,5 @@ int get_length(const unsigned char *buffer, int *len);
 unsigned char get_algorithm(EVP_PKEY *key);
 bool set_component(unsigned char *in_ptr, const BIGNUM *bn, int element_len);
 response import_key(ykpiv_state *state, int key_format, const char *key_param, const char *slot, char *password, unsigned char pin_policy, unsigned char touch_policy);
+response validate_pin(ykpiv_state *state, const char *pin);
 #endif

@@ -360,23 +360,66 @@ X509_NAME *parse_name(const char *orig_name, string error_message) {
     return NULL;
 }
 
-static bool sign_data(ykpiv_state *state, const unsigned char *in, size_t len, unsigned char *out,
-    size_t *out_len, unsigned char algorithm, int key) {
+void hexdump(const void* data, size_t size) {
+	char ascii[17];
+	size_t i, j;
+	ascii[16] = '\0';
+	for (i = 0; i < size; ++i) {
+		printf("%02X ", ((unsigned char*)data)[i]);
+		if (((unsigned char*)data)[i] >= ' ' && ((unsigned char*)data)[i] <= '~') {
+			ascii[i % 16] = ((unsigned char*)data)[i];
+		} else {
+			ascii[i % 16] = '.';
+		}
+		if ((i+1) % 8 == 0 || i+1 == size) {
+			printf(" ");
+			if ((i+1) % 16 == 0) {
+				printf("|  %s \n", ascii);
+			} else if (i+1 == size) {
+				ascii[(i+1) % 16] = '\0';
+				if ((i+1) % 16 <= 8) {
+					printf(" ");
+				}
+				for (j = (i+1) % 16; j < 16; ++j) {
+					printf("   ");
+				}
+				printf("|  %s \n", ascii);
+			}
+		}
+	}
+}
 
-  unsigned char signinput[1024];
+response sign_data(ykpiv_state *state, unsigned char *in, size_t in_len,
+  unsigned char *out, size_t *out_len, unsigned char algorithm, unsigned char key) {
+  response resp;
+  resp.response_code = YKPIV_OK;
+
+  int padding_ret = 0;
+
   if(YKPIV_IS_RSA(algorithm)) {
+    unsigned char signinput[1024];
     size_t padlen = algorithm == YKPIV_ALGO_RSA1024 ? 128 : 256;
-    if(RSA_padding_add_PKCS1_type_1(signinput, padlen, in, len) == 0) {
-      fprintf(stderr, "Failed adding padding.\n");
-      return false;
-    }
+    padding_ret = RSA_padding_add_PKCS1_type_1(signinput, padlen, in, in_len);
     in = signinput;
-    len = padlen;
+    in_len = padlen;
   }
-  if(ykpiv_sign_data(state, in, len, out, out_len, algorithm, key) == YKPIV_OK) {
-    return true;
+
+  if (padding_ret != 0) {
+    printf("-------------------------------------\n");
+    hexdump(in, in_len);
+    printf("-------------------------------------\n");
+    resp.response_code = ykpiv_sign_data(state, in, in_len, out, out_len, algorithm, key);
+    hexdump(out, *out_len);
+    printf("-------------------------------------\n");
+    if(resp.response_code != YKPIV_OK) {
+      resp.error_message = ykpiv_strerror(resp.response_code);
+    }
+  } else {
+    resp.response_code = YKPIV_GENERIC_ERROR;
+    resp.error_message = "Failed adding padding.";
   }
-  return false;
+
+  return resp;
 }
 
 response generate_certificate_request(ykpiv_state *piv_state, FILE *input_file, int hash, const char *slot, const char *subject) {
@@ -395,73 +438,78 @@ response generate_certificate_request(ykpiv_state *piv_state, FILE *input_file, 
     unsigned char digest[EVP_MAX_MD_SIZE + MAX_OID_LEN];
     unsigned int digest_len;
     int key = 0;
-    unsigned char *signinput;
-    size_t len = 0;
     int nid;
 
     sscanf(slot, "%2x", &key);
 
     unsigned char algorithm = get_algorithm(public_key);
-    md = get_hash(hash, &oid, &oid_len);
-    md_len = (unsigned int)EVP_MD_size(md);
-    digest_len = sizeof(digest) - md_len;
+    if (algorithm != 0) {
+      md = get_hash(hash, &oid, &oid_len);
+      md_len = (unsigned int)EVP_MD_size(md);
+      digest_len = sizeof(digest) - md_len;
 
-    req = X509_REQ_new();
-    if(!X509_REQ_set_pubkey(req, public_key)) {
-      resp.error_message = "Failed setting the request public key.";
-      resp.response_code = YKPIV_GENERIC_ERROR;
-    } else {
-      X509_REQ_set_version(req, 0);
+      req = X509_REQ_new();
+      if(!X509_REQ_set_pubkey(req, public_key)) {
+        resp.error_message = "Failed setting the request public key.";
+        resp.response_code = YKPIV_GENERIC_ERROR;
+      } else {
+        X509_REQ_set_version(req, 0);
 
-      string error_message;
-      name = parse_name(subject, error_message);
-      if(name) {
+        string error_message;
+        name = parse_name(subject, error_message);
+        if(name) {
+          if(X509_REQ_set_subject_name(req, name)) {
+            memcpy(digest, oid, oid_len);
+            if(ASN1_item_digest(ASN1_ITEM_rptr(X509_REQ_INFO), md, req->req_info, digest + oid_len, &digest_len)) {
+              nid = get_hashnid(hash, algorithm);
 
-        if(X509_REQ_set_subject_name(req, name)) {
-          memcpy(digest, oid, oid_len);
-          if(ASN1_item_digest(ASN1_ITEM_rptr(X509_REQ_INFO), md, req->req_info, digest + oid_len, &digest_len)) {
-            nid = get_hashnid(hash, algorithm);
-            std::stringstream errMsg;
-            if(nid == 0) {
-              errMsg << "Unsupported algorithm " << algorithm << " or hash " << hash;
-              resp.error_message = errMsg.str();
-              resp.response_code = YKPIV_GENERIC_ERROR;
-            } else {
-              if(YKPIV_IS_RSA(algorithm)) {
-                signinput = digest;
-                len = oid_len + digest_len;
+              std::stringstream errMsg;
+              if(nid == 0) {
+                errMsg << "Unsupported algorithm " << algorithm << " or hash " << hash;
+                resp.error_message = errMsg.str();
+                resp.response_code = YKPIV_GENERIC_ERROR;
               } else {
-                signinput = digest + oid_len;
-                len = digest_len;
-              }
+                req->sig_alg->algorithm = OBJ_nid2obj(nid);
 
-              req->sig_alg->algorithm = OBJ_nid2obj(nid);
-              {
+                unsigned char *signinput;
+                size_t len = 0;
+                if(YKPIV_IS_RSA(algorithm)) {
+                  signinput = digest;
+                  len = oid_len + digest_len;
+                } else {
+                  signinput = digest + oid_len;
+                  len = digest_len;
+                }
+
                 unsigned char signature[1024];
                 size_t sig_len = sizeof(signature);
-                sign_data(piv_state, signinput, len, signature, &sig_len, algorithm, key);
-                M_ASN1_BIT_STRING_set(req->signature, signature, sig_len);
-                req->signature->flags = ASN1_STRING_FLAG_BITS_LEFT;
+                resp = sign_data(piv_state, signinput, len, signature, &sig_len, algorithm, key);
+                if (resp.response_code == YKPIV_OK) {
+                  M_ASN1_BIT_STRING_set(req->signature, signature, sig_len);
+                  req->signature->flags = ASN1_STRING_FLAG_BITS_LEFT;
+                  FILE * pFile;
+                  pFile = tmpfile();
+                  PEM_write_X509_REQ(pFile, req);
+                  resp.message = file_to_str(pFile);
+                  fclose(pFile);
+                }
               }
-
-              FILE * pFile;
-              pFile = tmpfile();
-              PEM_write_X509_REQ(pFile, req);
-              resp.message = file_to_str(pFile);
-              fclose(pFile);
+            } else {
+              resp.error_message = "Failed doing digest of request.";
+              resp.response_code = YKPIV_GENERIC_ERROR;
             }
           } else {
-            resp.error_message = "Failed doing digest of request.";
+            resp.error_message = "Failed setting the request subject.";
             resp.response_code = YKPIV_GENERIC_ERROR;
           }
         } else {
-          resp.error_message = "Failed setting the request subject.";
+          resp.error_message = error_message;
           resp.response_code = YKPIV_GENERIC_ERROR;
         }
-      } else {
-        resp.error_message = error_message;
-        resp.response_code = YKPIV_GENERIC_ERROR;
       }
+    } else {
+      resp.error_message = "Impossible to get the algorithm from the public key.";
+      resp.response_code = YKPIV_GENERIC_ERROR;
     }
   } else {
     resp.error_message = "Failed loading public key for request.";
@@ -885,5 +933,26 @@ response import_key(ykpiv_state *state, int key_format, const char *key_param, c
     fclose(input_file);
   }
 
+  return resp;
+}
+
+response validate_pin(ykpiv_state *state, const char *pin) {
+  struct response resp;
+  std::ostringstream out_message;
+  int tries = -1;
+  resp.response_code = ykpiv_verify(state, pin, &tries);
+
+  if(resp.response_code == YKPIV_WRONG_PIN) {
+    if(tries > 0) {
+      out_message << "Pin verification failed, " << tries << " tries left before pin is blocked";
+    } else {
+      out_message << "Pin code blocked, use unblock-pin action to unblock";
+    }
+  } else if (resp.response_code != YKPIV_OK) {
+    out_message << "Pin code verification failed: " <<  ykpiv_strerror(resp.response_code);
+  }
+  resp.error_message = out_message.str();
+
+  resp.success = resp.response_code == YKPIV_OK;
   return resp;
 }
